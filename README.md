@@ -1,10 +1,27 @@
 # RiggerHub Android
 
-Enterprise-grade Android application serving as the central hub for rigger operations and management.
+🏗️ **A ChaseWhiteRabbit NGO Initiative**
 
-## ChaseWhiteRabbit NGO Integration
+RiggerHub Android is an enterprise-grade mobile application serving as the central hub for operations management and coordination among rigger professionals in the construction, oil 6 gas, and industrial sectors. It provides managers and workers with powerful features for efficient project management and collaboration.
 
-This project is developed in support of ChaseWhiteRabbit NGO's mission to enhance safety and efficiency in industrial operations.
+## 🎯 Project Purpose
+
+As part of ChaseWhiteRabbit NGO's mission to enhance 4;ngineering operations, RiggerHub Android offers comprehensive tools to:
+
+- **Manage** large-scale projects and team collaborations
+- **Coordinate** resources and personnel for complex tasks
+- **Monitor** compliance with modern standards and safety protocols
+- **Streamline** communication channels for team-wide updates
+
+## 🚀 Technology Stack
+
+- **Language**: Kotlin 1.9.20
+- **Architecture**: MVVM
+- **UI Framework**: Jetpack Compose
+- **Minimum Android Version**: API 24 (Android 7.0)
+- **Target Android Version**: API 34 (Android 14)
+
+## Project Structure
 
 ## Project Structure
 
