@@ -1,0 +1,176 @@
+stages:
+  - validate
+  - test
+  - build
+  - security
+  - deploy
+  - notify
+
+variables:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+cache:
+  paths:
+    - .gradle/wrapper
+    - .gradle/caches
+
+before_script:
+  - export GRADLE_USER_HOME=$(pwd)/.gradle
+  - chmod +x ./gradlew
+
+# Validation Stage
+validate:
+  stage: validate
+  image: android:latest
+  script:
+    - ./gradlew check
+    - ./gradlew lint
+  artifacts:
+    reports:
+      junit: app/build/test-results/test/TEST-*.xml
+    paths:
+      - app/build/reports/
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Testing Stage
+test:unit:
+  stage: test
+  image: android:latest
+  script:
+    - ./gradlew test
+    - ./gradlew jacocoTestReport
+  artifacts:
+    reports:
+      junit: app/build/test-results/test/TEST-*.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: app/build/reports/jacoco/test/cobertura.xml
+    paths:
+      - app/build/reports/jacoco/
+    expire_in: 1 week
+  coverage: '/Total.*?([0-9]{1,3})%/'
+
+test:integration:
+  stage: test
+  image: android:latest
+  services:
+    - docker:dind
+  script:
+    - ./gradlew connectedAndroidTest
+  artifacts:
+    reports:
+      junit: app/build/outputs/androidTest-results/connected/TEST-*.xml
+    paths:
+      - app/build/reports/androidTests/
+    expire_in: 1 week
+
+# Build Stage
+build:debug:
+  stage: build
+  image: android:latest
+  script:
+    - ./gradlew assembleDebug
+  artifacts:
+    paths:
+      - app/build/outputs/apk/debug/*.apk
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - develop
+
+build:release:
+  stage: build
+  image: android:latest
+  script:
+    - ./gradlew assembleRelease
+  artifacts:
+    paths:
+      - app/build/outputs/apk/release/*.apk
+      - app/build/outputs/bundle/release/*.aab
+    expire_in: 4 weeks
+  only:
+    - main
+    - tags
+
+# Security Stage
+security:sast:
+  stage: security
+  image: android:latest
+  script:
+    - ./gradlew spotbugsMain
+  artifacts:
+    reports:
+      sast: app/build/reports/spotbugs/main.json
+    paths:
+      - app/build/reports/spotbugs/
+    expire_in: 1 week
+  allow_failure: true
+
+security:dependency:
+  stage: security
+  image: android:latest
+  script:
+    - ./gradlew dependencyCheckAnalyze
+  artifacts:
+    reports:
+      dependency_scanning: dependency-check-report.json
+    expire_in: 1 week
+  allow_failure: true
+
+# Deploy Stage
+deploy:staging:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  script:
+    - echo "Deploying to staging environment"
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
+    - gcloud firebase appdistribution:distribute app/build/outputs/apk/debug/*.apk --app $FIREBASE_APP_ID --groups "testers"
+  environment:
+    name: staging
+    url: https://console.firebase.google.com/project/$FIREBASE_PROJECT_ID/appdistribution
+  only:
+    - develop
+  when: manual
+
+deploy:production:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  script:
+    - echo "Deploying to production"
+    - gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS
+    - gcloud alpha app deploy --appyaml=app.yaml --version=$CI_COMMIT_SHORT_SHA
+  environment:
+    name: production
+    url: https://play.google.com/console
+  only:
+    - main
+    - tags
+  when: manual
+
+# Notification Stage
+notify:success:
+  stage: notify
+  image: alpine:latest
+  script:
+    - echo "Build completed successfully for RiggerHub Android"
+    - 'curl -X POST -H "Content-Type: application/json" -d "{\"text\":\"✅ RiggerHub Android: Build $CI_PIPELINE_ID completed successfully\"}" $SLACK_WEBHOOK_URL'
+  when: on_success
+  only:
+    - main
+
+notify:failure:
+  stage: notify
+  image: alpine:latest
+  script:
+    - echo "Build failed for RiggerHub Android"
+    - 'curl -X POST -H "Content-Type: application/json" -d "{\"text\":\"❌ RiggerHub Android: Build $CI_PIPELINE_ID failed\"}" $SLACK_WEBHOOK_URL'
+  when: on_failure
+  only:
+    - main
